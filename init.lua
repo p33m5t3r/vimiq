@@ -59,9 +59,25 @@ end
 -- Function to display the LLM buffer in a split
 local function display_llm_buffer()
     local buf = get_llm_buffer()
-    vim.cmd('vsplit')
-    vim.api.nvim_win_set_buf(0, buf)
-    vim.cmd('vertical resize ' .. math.floor(vim.o.columns * 0.4))
+    
+    -- Check if there's already a window with the LLM buffer
+    local existing_win = nil
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_get_buf(win) == buf then
+            existing_win = win
+            break
+        end
+    end
+    
+    if existing_win then
+        -- If a window exists, just focus on it
+        vim.api.nvim_set_current_win(existing_win)
+    else
+        -- If no window exists, create a new split
+        vim.cmd('vsplit')
+        vim.api.nvim_win_set_buf(0, buf)
+        vim.cmd('vertical resize ' .. math.floor(vim.o.columns * 0.4))
+    end
 end
 
 -- Function to stream content from Python script to buffer
@@ -120,16 +136,6 @@ function M.stop_streaming()
     end
 end
 
--- Function to start streaming
--- function M.start_streaming()
---     display_llm_buffer()
---     local python_cmd = 'python3 backend.py'
---     local stop_func = stream_to_buffer(python_cmd)
---     
---     -- Store the stop function so it can be called later
---     M.stop_current_stream = stop_func
--- end
-
 local function run_backend_command(input, arg)
     local current_dir = get_current_directory()
     local current_file = get_working_file()
@@ -155,7 +161,15 @@ end
 -- Function to initialize the buffer
 function M.init_buffer()
     display_llm_buffer()
+    
+    -- Clear the existing buffer content
+    local buf = get_llm_buffer()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+    
+    -- Run the backend command
     run_backend_command(nil, "init")
+    
+    -- Wait a short time to ensure the backend has finished writing
     vim.defer_fn(function()
         local buffer = get_llm_buffer()
         
@@ -168,7 +182,7 @@ function M.init_buffer()
             local line_count = vim.api.nvim_buf_line_count(buffer)
             vim.api.nvim_win_set_cursor(win, {line_count, 0})
         end
-    end, 50)  -- 100ms delay, adjust if needed
+    end, 100)  -- 100ms delay, adjust if needed
 end
 
 -- Function to evaluate the buffer contents
