@@ -5,7 +5,6 @@
 
 ### TODO
 
-- impl the model config option
 - kill old buffer on re-init
 - add 'fix' feature
 - add custom filetype syntax

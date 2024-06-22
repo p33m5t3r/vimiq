@@ -107,6 +107,7 @@ def send_to_neovim(text: str):
 # --------------------------- llm implementation --------------------------
 # this is all stuff you can change based on your desired look/feel
 SYS_ROLE = ">>>> SYSTEM\n"
+MODEL_ROLE = ">>>> MODEL\n"
 INCLUDE_ROLE = ">>>> INCLUDE\n"
 USER_ROLE = ">>>> USER\n"
 ASSISTANT_ROLE = ">>>> ASSISTANT\n"
@@ -116,6 +117,7 @@ ASSISTANT_ROLE = ">>>> ASSISTANT\n"
 # ... will fix eventually
 ROLES = {
     SYS_ROLE.strip(): "system",
+    MODEL_ROLE.strip(): "model",
     INCLUDE_ROLE.strip(): "includes",
     USER_ROLE.strip(): "user",
     ASSISTANT_ROLE.strip(): "assistant"
@@ -241,11 +243,40 @@ async def llm_anthropic(request: dict, **kwargs):
 
 
 async def llm_openai(request: dict, **kwargs):
-    for _ in range(5):
-        await asyncio.sleep(0.5)
-        send_to_neovim("called openai!\n")
+    import openai
+    openai.api_key = OPENAI_API_KEY
+    client = openai.OpenAI()
+
+    messages = []
+    sys_msg = {
+        "role": "system",
+        "content": [
+            {
+                "type": "text",
+                "text": fmt_system_msg_defult(request)
+            }
+        ]
+    }
+    chat_messages = fmt_chat_msges_default(request)
+    messages.append(sys_msg)
+    messages.extend(chat_messages)
+    
+    args = {
+        "model": "gpt-4o",
+        "temperature": 0.1,
+        "stream": True,
+        "messages": messages,
+    }
+    log_to_json('raw_request', request)
+    log_to_json('llm_args', args)
+
+    stream = client.chat.completions.create(**args)
+    for chunk in stream:
+        if chunk.choices[0].delta.content is not None:
+            send_to_neovim(chunk.choices[0].delta.content)
 
 
+# this is what the ['model'] setting points at
 LLM_IMPLS = {
     "default": llm_anthropic,
     "anthropic": llm_anthropic,
@@ -306,6 +337,13 @@ async def init_buffer(lua_input: str,
     if user_config_json:
         chunks.append(
             fmt_as_role(
+                user_config_json.get("model"),
+                MODEL_ROLE,
+                )
+        )
+
+        chunks.append(
+            fmt_as_role(
                 user_config_json.get("system"),
                 SYS_ROLE, 
             )
@@ -317,6 +355,7 @@ async def init_buffer(lua_input: str,
                 INCLUDE_ROLE, 
             )
         )
+
     chunks.append(USER_ROLE[:-1])
     log_to_json('init_buffer_chunks', chunks)
 
@@ -353,8 +392,9 @@ async def eval_buffer(lua_input: str,
     request['current_file'] = current_file_abs_path
     
     models_available = LLM_IMPLS
-    model_chosen = request.get('model', ['default'])[0]
-    
+    model_chosen = request.get('model', ['default'])
+    model_chosen = model_chosen[-1] if isinstance(model_chosen, list) else model_chosen
+
     if model_chosen not in models_available:
         print(f"Error: Model {model_chosen} not found")
         return
