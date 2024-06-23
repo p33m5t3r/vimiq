@@ -74,7 +74,7 @@ local function display_llm_buffer()
         vim.api.nvim_set_current_win(existing_win)
     else
         -- If no window exists, create a new split
-        vim.cmd('vsplit')
+        vim.cmd('botright vsplit')
         vim.api.nvim_win_set_buf(0, buf)
         vim.cmd('vertical resize ' .. math.floor(vim.o.columns * 0.4))
     end

@@ -13,7 +13,7 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 SYSTEM_DEFAULT = "you are a helpful assistant" 
 CONFIG_FILE_PATTERN = ".vimiq.json"
-DEBUG = True
+DEBUG = False
 
 # --------------------------- logging --------------------------
 class JsonFormatter(logging.Formatter):

@@ -1,5 +1,5 @@
 {
-    "model": ["openai"],
+    "model": ["default"],
     "system": "You are a helpful assistant.",
     "includes": ["./backend.py", "./init.lua"]
 }
