@@ -460,7 +460,8 @@ async def main():
     """ a config file is expected to look like this:
     {
         "system": "you are a helpful assistant",
-        "includes": ["relative/path/to/some_file.c", "another_file.h"]
+        "includes": ["relative/path/to/some_file.c", "another_file.h"],
+        "model": ['default']
     }
     plus whatever other fields you'd like to define
     """ 
