@@ -185,6 +185,60 @@ function M.init_buffer()
     end, 100)  -- 100ms delay, adjust if needed
 end
 
+-- Function to get LSP diagnostics and text for the current line
+local function get_current_line_info()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local line_num = vim.api.nvim_win_get_cursor(0)[1] - 1  -- 0-indexed
+    local line_text = vim.api.nvim_buf_get_lines(bufnr, line_num, line_num + 1, false)[1] or ""
+    local diagnostics = vim.diagnostic.get(bufnr, {lnum = line_num})
+    
+    local errors = {}
+    for _, diagnostic in ipairs(diagnostics) do
+        if diagnostic.severity == vim.diagnostic.severity.ERROR then
+            table.insert(errors, string.format("[%s] %s", diagnostic.source or "LSP", diagnostic.message))
+        end
+    end
+    
+    local error_text = #errors > 0 and table.concat(errors, "\n") or "No LSP errors on the current line."
+    
+    return {
+        errors = error_text,
+        line_text = line_text
+    }
+end
+
+function M.init_buffer_with_lsp_error()
+    -- Get LSP errors and text from the current line
+    local line_info = get_current_line_info()
+    
+    display_llm_buffer()
+    
+    -- Clear the existing buffer content
+    local buf = get_llm_buffer()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+    
+    -- Prepare input for backend command
+    local input = string.format("%s\n%s", line_info.line_text, line_info.errors)
+    
+    -- Run the backend command with line text and LSP errors as input
+    run_backend_command(input, "init")
+    
+    -- Wait a short time to ensure the backend has finished writing
+    vim.defer_fn(function()
+        local buffer = get_llm_buffer()
+        
+        -- Add a new line at the end of the buffer
+        vim.api.nvim_buf_set_lines(buffer, -1, -1, false, {""})
+        
+        -- Move the cursor to the new empty line
+        local win = vim.fn.bufwinid(buffer)
+        if win ~= -1 then
+            local line_count = vim.api.nvim_buf_line_count(buffer)
+            vim.api.nvim_win_set_cursor(win, {line_count, 0})
+        end
+    end, 100)  -- 100ms delay, adjust if needed
+end
+
 -- Function to evaluate the buffer contents
 function M.eval_buffer()
     if not llm_buffer_id or not vim.api.nvim_buf_is_valid(llm_buffer_id) then
@@ -196,9 +250,9 @@ function M.eval_buffer()
     run_backend_command(contents, "evaluate")
 end
 
-
 -- Set up commands
 vim.api.nvim_create_user_command('InitBuffer', M.init_buffer, {})
+vim.api.nvim_create_user_command('InitBufferWithLSPError', M.init_buffer_with_lsp_error, {})
 vim.api.nvim_create_user_command('EvalBuffer', M.eval_buffer, {})
 vim.api.nvim_create_user_command('StopStreaming', M.stop_streaming, {})
 

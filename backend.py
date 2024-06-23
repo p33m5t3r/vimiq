@@ -100,6 +100,13 @@ def parse_config_file(config_file_abs_path: str | None) -> dict | None:
         print(f"Error: Unable to read config file {config_file_abs_path}")
         return None
 
+# some quote escaping shenanigans
+def fmt_from_neovim(content: str) -> str:
+    if content.startswith('\"'):
+        content = content[1:]
+    if content.endswith('\"'):
+        content = content[:-1]
+    return content
 
 def send_to_neovim(text: str):
     print(text.replace("\n", "\\n"), flush=True, end='')
@@ -293,13 +300,7 @@ def parse_buffer_content(content: str) -> dict:
     current_role = None
     current_content = []
     log_to_json('raw_buf_content', content)
-
-    # if user content starts/ends with a real quote,
-    # ... strip would kill it, so we do this instead
-    if content.startswith('\"'):
-        content = content[1:]
-    if content.endswith('\"'):
-        content = content[:-1]
+    content = fmt_from_neovim(content) 
 
     for line in content.split('\n'):
         stripped_line = line.strip()
@@ -332,7 +333,19 @@ async def init_buffer(lua_input: str,
                       user_config_json: dict | None,
                       project_root_abs_path: str | None,
                       current_file_abs_path: str | None):
-    
+
+    relpath = ""
+    if current_file_abs_path:
+        if project_root_abs_path:
+            relpath = os.path.relpath(current_file_abs_path, project_root_abs_path)
+            if relpath == ".":
+                relpath = os.path.basename(current_file_abs_path)
+        else:
+            relpath = os.path.basename(current_file_abs_path)
+
+    if not relpath:
+        relpath = current_file_abs_path or ""
+
     chunks = []
     if user_config_json:
         chunks.append(
@@ -356,7 +369,17 @@ async def init_buffer(lua_input: str,
             )
         )
 
-    chunks.append(USER_ROLE[:-1])
+    # chunks.append(USER_ROLE[:-1])
+    chunks.append(USER_ROLE)
+    if lua_input:       # this means an error was passed in
+        lua_input = fmt_from_neovim(lua_input)
+        error_line, lsp_msg = lua_input.split("\n", 1)
+        err_ctx_msg = f"can you assist with the following error? (in {relpath}):\n"
+        err_ctx_msg += error_line + "\n"
+        err_ctx_msg += "^^^\n"
+        err_ctx_msg += lsp_msg
+        chunks.append(err_ctx_msg)
+
     log_to_json('init_buffer_chunks', chunks)
 
     send_to_neovim("\n".join(chunks))

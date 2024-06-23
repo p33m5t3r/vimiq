@@ -5,7 +5,6 @@
 
 ### TODO
 
-- add 'fix' feature
 - flesh out readme, add demo
 - add custom filetype syntax
 - add locallama support
